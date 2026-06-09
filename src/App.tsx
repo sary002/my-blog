@@ -1,22 +1,19 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import Hero from './components/Hero'
-import Projects from './components/Projects'
-import Articles from './components/Articles'
-import Contact from './components/Contact'
 import Footer from './components/Footer'
+import Home from './pages/Home'
+import AIChat from './pages/AIChat'
 
 function App() {
   return (
-    <>
+    <BrowserRouter>
       <Navbar />
-      <main>
-        <Hero />
-        <Projects />
-        <Articles />
-        <Contact />
-      </main>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/ai" element={<AIChat />} />
+      </Routes>
       <Footer />
-    </>
+    </BrowserRouter>
   )
 }
 

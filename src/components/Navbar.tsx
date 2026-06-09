@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 
-const navItems = [
+const homeNavItems = [
   { label: '首页', href: '#hero' },
   { label: '项目', href: '#projects' },
   { label: '文章', href: '#articles' },
@@ -10,6 +11,8 @@ const navItems = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const location = useLocation()
+  const isHome = location.pathname === '/'
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
@@ -24,23 +27,37 @@ export default function Navbar() {
     }
   }, [menuOpen])
 
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [location.pathname])
+
   const handleNavClick = () => setMenuOpen(false)
 
   return (
-    <header className={`navbar ${scrolled ? 'navbar--scrolled' : ''}`}>
+    <header className={`navbar ${scrolled || !isHome ? 'navbar--scrolled' : ''}`}>
       <nav className="navbar__inner">
-        <a href="#hero" className="navbar__logo" onClick={handleNavClick}>
+        <Link to="/" className="navbar__logo" onClick={handleNavClick}>
           Blog
-        </a>
+        </Link>
 
         <ul className={`navbar__links ${menuOpen ? 'navbar__links--open' : ''}`}>
-          {navItems.map((item) => (
-            <li key={item.href}>
-              <a href={item.href} onClick={handleNavClick}>
-                {item.label}
-              </a>
-            </li>
-          ))}
+          {isHome &&
+            homeNavItems.map((item) => (
+              <li key={item.href}>
+                <a href={item.href} onClick={handleNavClick}>
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          <li>
+            <Link
+              to="/ai"
+              className={location.pathname === '/ai' ? 'navbar__link--active' : ''}
+              onClick={handleNavClick}
+            >
+              AI 助手
+            </Link>
+          </li>
         </ul>
 
         <button
