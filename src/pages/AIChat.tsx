@@ -6,8 +6,6 @@ interface Message {
   content: string
 }
 
-const AI_REPLY = '我是AI助手'
-
 export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -17,7 +15,7 @@ export default function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim()
     if (!trimmed) return
 
@@ -27,14 +25,32 @@ export default function AIChat() {
       content: trimmed,
     }
 
-    const assistantMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      content: AI_REPLY,
-    }
-
-    setMessages((prev) => [...prev, userMessage, assistantMessage])
+    setMessages((prev) => [...prev, userMessage])
     setInput('')
+
+    try {
+      const response = await fetch('http://localhost:3000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: trimmed }),
+      })
+      const data = await response.json()
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: data.answer,
+      }
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch {
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '请求失败，请稍后重试',
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

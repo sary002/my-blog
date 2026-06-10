@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backend": "npm run start --prefix backend",
+    "backend:dev": "npm run dev --prefix backend"
   },
   "dependencies": {
     "react": "^19.2.6",

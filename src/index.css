@@ -611,7 +611,7 @@ a {
   display: flex;
   flex-direction: column;
   padding-top: var(--nav-height);
-  min-height: calc(100svh - var(--nav-height));
+  min-height: 100svh;
   background: var(--color-bg);
 }
 

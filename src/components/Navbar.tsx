@@ -27,10 +27,6 @@ export default function Navbar() {
     }
   }, [menuOpen])
 
-  useEffect(() => {
-    setMenuOpen(false)
-  }, [location.pathname])
-
   const handleNavClick = () => setMenuOpen(false)
 
   return (
@@ -41,14 +37,21 @@ export default function Navbar() {
         </Link>
 
         <ul className={`navbar__links ${menuOpen ? 'navbar__links--open' : ''}`}>
-          {isHome &&
+          {isHome ? (
             homeNavItems.map((item) => (
               <li key={item.href}>
                 <a href={item.href} onClick={handleNavClick}>
                   {item.label}
                 </a>
               </li>
-            ))}
+            ))
+          ) : (
+            <li>
+              <Link to="/" onClick={handleNavClick}>
+                首页
+              </Link>
+            </li>
+          )}
           <li>
             <Link
               to="/ai"
