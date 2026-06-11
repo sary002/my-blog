@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      // Target must match backend PORT default in backend/server.js (currently 3001).
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,

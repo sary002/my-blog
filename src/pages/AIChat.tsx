@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { API_BASE } from '../lib/apiBase'
 
 interface Message {
   id: string
@@ -6,50 +7,139 @@ interface Message {
   content: string
 }
 
-export default function AIChat() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+const STORAGE_KEY = 'my-blog-chat-history'
+const HISTORY_TURNS = 20 // messages to send back to the backend (not words)
 
+function loadHistory(): Message[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (m): m is Message =>
+        m &&
+        typeof m.id === 'string' &&
+        (m.role === 'user' || m.role === 'assistant') &&
+        typeof m.content === 'string',
+    )
+  } catch {
+    return []
+  }
+}
+
+function saveHistory(messages: Message[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+  } catch {
+    // Safari private mode / quota — ignore.
+  }
+}
+
+export default function AIChat() {
+  const [messages, setMessages] = useState<Message[]>(loadHistory)
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  // Persist on every change.
+  useEffect(() => {
+    saveHistory(messages)
+  }, [messages])
+
+  // Auto-scroll to bottom on new messages.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Cancel any in-flight request when the component unmounts.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
+  const handleClear = useCallback(() => {
+    abortRef.current?.abort()
+    setMessages([])
+    setInput('')
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   const handleSend = async () => {
     const trimmed = input.trim()
-    if (!trimmed) return
+    if (!trimmed || loading) return
+
+    // Cancel any previous in-flight request before starting a new one.
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
       content: trimmed,
     }
-
     setMessages((prev) => [...prev, userMessage])
     setInput('')
+    setLoading(true)
+
+    // Snapshot history to send — exclude the message we just appended,
+    // and cap to the last N messages for token economy.
+    const historyToSend = messages.slice(-HISTORY_TURNS).map(({ role, content }) => ({
+      role,
+      content,
+    }))
+
+    const pushError = (content: string) => {
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: 'assistant', content },
+      ])
+    }
 
     try {
-      const response = await fetch('https://tangsanyi-blog.onrender.com/chat', {
+      const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: trimmed }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: trimmed, history: historyToSend }),
+        signal: controller.signal,
       })
-      const data = await response.json()
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: data.answer,
+
+      // Read body once; downstream branches need it.
+      const data = await response.json().catch(() => ({} as { error?: string }))
+
+      if (response.ok) {
+        const answer = typeof data.answer === 'string' ? data.answer : 'No response'
+        setMessages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: 'assistant', content: answer },
+        ])
+      } else if (response.status === 429) {
+        pushError('请求过于频繁，请稍后再试')
+      } else if (response.status >= 500) {
+        pushError('服务暂时不可用，请稍后重试')
+      } else {
+        // 4xx — surface backend's error code if present.
+        pushError(data.error ? `请求失败：${data.error}` : '请求失败，请检查输入后重试')
       }
-      setMessages((prev) => [...prev, assistantMessage])
-    } catch {
-      const errorMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: '请求失败，请稍后重试',
+    } catch (err) {
+      // AbortError fires when a newer send supersedes us, or on unmount.
+      // Either way, don't pollute the chat with an error message.
+      if (err instanceof Error && err.name === 'AbortError') return
+      // TypeError on fetch typically means network failure / offline / CORS.
+      pushError('网络异常，请检查连接后重试')
+    } finally {
+      // Only reset loading if WE are still the current controller.
+      if (abortRef.current === controller) {
+        setLoading(false)
+        abortRef.current = null
       }
-      setMessages((prev) => [...prev, errorMessage])
     }
   }
 
@@ -60,16 +150,30 @@ export default function AIChat() {
     }
   }
 
+  const canSend = !!input.trim() && !loading
+
   return (
     <main className="ai-chat">
       <div className="ai-chat__container">
         <header className="ai-chat__header">
-          <h1 className="ai-chat__title">AI 助手</h1>
-          <p className="ai-chat__subtitle">有什么可以帮你的？</p>
+          <div>
+            <h1 className="ai-chat__title">AI 助手</h1>
+            <p className="ai-chat__subtitle">有什么可以帮你的？</p>
+          </div>
+          {messages.length > 0 && (
+            <button
+              type="button"
+              className="ai-chat__clear"
+              onClick={handleClear}
+              aria-label="清空对话"
+            >
+              清空对话
+            </button>
+          )}
         </header>
 
         <div className="ai-chat__messages" role="log" aria-live="polite">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !loading ? (
             <div className="ai-chat__empty">
               <p>发送一条消息开始对话</p>
             </div>
@@ -86,6 +190,17 @@ export default function AIChat() {
               </div>
             ))
           )}
+          {loading && (
+            <div className="ai-chat__message ai-chat__message--assistant" aria-hidden="true">
+              <div className="ai-chat__avatar">AI</div>
+              <div className="ai-chat__bubble ai-chat__status">
+                <span className="ai-chat__dot" />
+                <span className="ai-chat__dot" />
+                <span className="ai-chat__dot" />
+                <span className="ai-chat__status-text">思考中…</span>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -96,15 +211,17 @@ export default function AIChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="输入消息..."
+              placeholder={loading ? '等待回复…' : '输入消息…'}
               rows={1}
               aria-label="消息输入框"
+              disabled={loading}
             />
             <button
               type="button"
               className="ai-chat__send"
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!canSend}
+              aria-busy={loading}
               aria-label="发送消息"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
