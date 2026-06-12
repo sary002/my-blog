@@ -61,6 +61,17 @@ export default function Navbar() {
               AI 助手
             </Link>
           </li>
+          <li>
+            <Link
+              to="/ai-translator"
+              className={
+                location.pathname === '/ai-translator' ? 'navbar__link--active' : ''
+              }
+              onClick={handleNavClick}
+            >
+              AI 翻译官
+            </Link>
+          </li>
         </ul>
 
         <button

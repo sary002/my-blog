@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import Home from './pages/Home'
 import AIChat from './pages/AIChat'
+import AITranslator from './pages/AITranslator'
 
 function AppContent() {
   const { pathname } = useLocation()
@@ -14,6 +15,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/ai" element={<AIChat />} />
+        <Route path="/ai-translator" element={<AITranslator />} />
       </Routes>
       {!isAIChat && <Footer />}
     </>
